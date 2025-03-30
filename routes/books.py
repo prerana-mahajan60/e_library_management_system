@@ -1,35 +1,44 @@
-import mysql.connector
-from flask import Blueprint, render_template, request, redirect, url_for, flash,session
+import psycopg2
+from flask import Blueprint, render_template, request, redirect, url_for, flash, session
 from config import get_db_connection
-#books_blueprint
+
+# books_blueprint
 books_bp = Blueprint('books_bp', __name__, template_folder="templates")
 
 
-#to display books
+# To display books
 @books_bp.route('/books', methods=['GET'])
 def books():
     connection = get_db_connection()
-    cursor = connection.cursor(dictionary=True)
+    cursor = connection.cursor()
 
     # Fetching books from database
     cursor.execute("""
-        SELECT * FROM books ORDER BY language, book_name
+        SELECT book_id, book_name, author, year, available_copies, language
+        FROM books ORDER BY language, book_name
     """)
     books = cursor.fetchall()
 
-    #sort books by language
+    # Sort books by language
     books_by_language = {}
     for book in books:
-        lang = book['language']
+        lang = book[5]  # language is at index 5
         if lang not in books_by_language:
             books_by_language[lang] = []
-        books_by_language[lang].append(book)
+        books_by_language[lang].append({
+            "book_id": book[0],
+            "book_name": book[1],
+            "author": book[2],
+            "year": book[3],
+            "available_copies": book[4],
+            "language": book[5]
+        })
 
     connection.close()
     return render_template('books.html', books_by_language=books_by_language, role="Admin")
 
 
-#to add a new book (Admin only)
+# To add a new book (Admin only)
 @books_bp.route('/books/add', methods=['POST'])
 def add_book():
     book_name = request.form['book_name']
@@ -42,13 +51,13 @@ def add_book():
     connection = get_db_connection()
     cursor = connection.cursor()
 
-    #Adding new book
+    # Adding new book
     cursor.execute("""
         INSERT INTO books (book_name, author, year, available_copies, language)
         VALUES (%s, %s, %s, %s, %s)
     """, (book_name, author, year, available_copies, language))
 
-    #Updating total_books_added
+    # Updating total_books_added
     cursor.execute("""
         UPDATE admin
         SET total_books_added = total_books_added + 1
@@ -62,7 +71,8 @@ def add_book():
     flash('Book added successfully!', 'success')
     return redirect(url_for('books_bp.books'))
 
-#Route to delete a book (Admin only)
+
+# Route to delete a book (Admin only)
 @books_bp.route('/books/delete/<int:book_id>', methods=['GET'])
 def delete_book(book_id):
     admin_id = session.get("admin_id")
@@ -87,11 +97,11 @@ def delete_book(book_id):
     return redirect(url_for('books_bp.books'))
 
 
-#to update book details (Admin only)
+# To update book details (Admin only)
 @books_bp.route('/books/update/<int:book_id>', methods=['GET', 'POST'])
 def update_book(book_id):
-    connection= get_db_connection()
-    cursor = connection.cursor(dictionary=True)
+    connection = get_db_connection()
+    cursor = connection.cursor()
 
     if request.method == 'POST':
         book_name = request.form['book_name']
@@ -100,7 +110,7 @@ def update_book(book_id):
         available_copies = request.form['available_copies']
         language = request.form['language']
 
-        #Update book details
+        # Update book details
         cursor.execute("""
             UPDATE books
             SET book_name = %s, author = %s, year = %s, available_copies = %s, language = %s
@@ -111,10 +121,22 @@ def update_book(book_id):
         flash('Book updated successfully!', 'success')
         return redirect(url_for('books_bp.books'))
 
-    cursor.execute("SELECT * FROM books WHERE book_id = %s", (book_id,))
+    cursor.execute("SELECT book_id, book_name, author, year, available_copies, language FROM books WHERE book_id = %s", (book_id,))
     book = cursor.fetchone()
+
+    if book:
+        book_data = {
+            "book_id": book[0],
+            "book_name": book[1],
+            "author": book[2],
+            "year": book[3],
+            "available_copies": book[4],
+            "language": book[5]
+        }
+    else:
+        book_data = {}
 
     cursor.close()
     connection.close()
 
-    return render_template('update_book.html', book=book)
+    return render_template('update_book.html', book=book_data)

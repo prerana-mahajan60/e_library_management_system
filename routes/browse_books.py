@@ -1,5 +1,5 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash
-import mysql.connector
+import psycopg2
 from datetime import datetime, timedelta
 from config import get_db_connection
 import pytz
@@ -7,15 +7,15 @@ import pytz
 # Set IST timezone
 IST = pytz.timezone('Asia/Kolkata')
 
-#browse_books_blueprint
+# browse_books_blueprint
 browse_books_bp = Blueprint('browse_books_bp', __name__, template_folder="templates")
 
 
-#to display available books
+# To display available books
 @browse_books_bp.route('/browse_books')
 def browse_books():
     connection = get_db_connection()
-    cursor = connection.cursor(dictionary=True)
+    cursor = connection.cursor()
 
     student_id = request.args.get('student_id')
 
@@ -24,8 +24,16 @@ def browse_books():
 
     books_by_language = {'English': [], 'Hindi': [], 'Marathi': []}
     for book in available_books:
-        if book['language'] in books_by_language:
-            books_by_language[book['language']].append(book)
+        lang = book[5]  # language is at index 5
+        if lang in books_by_language:
+            books_by_language[lang].append({
+                "book_id": book[0],
+                "book_name": book[1],
+                "author": book[2],
+                "year": book[3],
+                "available_copies": book[4],
+                "language": book[5]
+            })
 
     cursor.close()
     connection.close()
@@ -36,11 +44,8 @@ def browse_books():
         student_id=student_id
     )
 
-def clear_login_success_flash():
-    flashes = session.get('_flashes', [])
-    session['_flashes'] = [msg for msg in flashes if msg[0] != "success" or msg[1] != "Login Successful!"]
 
-#to display borrowed books
+# To display borrowed books
 @browse_books_bp.route('/borrowed_books')
 def borrowed_books():
     student_id = session.get("student_id")
@@ -49,26 +54,37 @@ def borrowed_books():
         return redirect(url_for("auth.student_login"))
 
     connection = get_db_connection()
-    cursor = connection.cursor(dictionary=True)
+    cursor = connection.cursor()
 
     cursor.execute("""
-        SELECT borrowed_books.borrow_id, books.book_name, books.author, 
-               books.year, books.language,  
-               borrowed_books.borrow_date, borrowed_books.due_date  
-        FROM borrowed_books
-        JOIN books ON borrowed_books.book_id = books.book_id
-        WHERE borrowed_books.student_id = %s AND borrowed_books.return_date IS NULL
+        SELECT bb.borrow_id, b.book_name, b.author, 
+               b.year, b.language,  
+               bb.borrow_date, bb.due_date  
+        FROM borrowed_books bb
+        JOIN books b ON bb.book_id = b.book_id
+        WHERE bb.student_id = %s AND bb.return_date IS NULL
     """, (student_id,))
 
     borrowed_books = cursor.fetchall()
+    books_data = []
+    for book in borrowed_books:
+        books_data.append({
+            "borrow_id": book[0],
+            "book_name": book[1],
+            "author": book[2],
+            "year": book[3],
+            "language": book[4],
+            "borrow_date": book[5],
+            "due_date": book[6]
+        })
 
     cursor.close()
     connection.close()
 
-    return render_template("borrowed_books.html", borrowed_books=borrowed_books)
+    return render_template("borrowed_books.html", borrowed_books=books_data)
 
 
-#to borrow a book
+# To borrow a book
 @browse_books_bp.route('/borrow_book/<int:book_id>', methods=['POST'])
 def borrow_book(book_id):
     student_id = session.get("student_id")
@@ -79,7 +95,7 @@ def borrow_book(book_id):
     connection = get_db_connection()
     cursor = connection.cursor()
 
-    #Check if the student already borrowed the book and not returned it
+    # Check if the student already borrowed the book and not returned it
     cursor.execute("""
         SELECT COUNT(*)
         FROM borrowed_books
@@ -94,12 +110,12 @@ def borrow_book(book_id):
         connection.close()
         return redirect(url_for('browse_books_bp.borrowed_books'))
 
-    #Get available copies
+    # Get available copies
     cursor.execute("SELECT available_copies FROM books WHERE book_id = %s", (book_id,))
     book = cursor.fetchone()
 
     if book and book[0] > 0:
-        #Decrease available copies by 1
+        # Decrease available copies by 1
         cursor.execute("UPDATE books SET available_copies = available_copies - 1 WHERE book_id = %s", (book_id,))
 
         borrow_date = datetime.now(IST)
@@ -110,13 +126,13 @@ def borrow_book(book_id):
             VALUES (%s, %s, %s, %s)
         """, (student_id, book_id, borrow_date, due_date))
 
-        #log transaction
+        # Log transaction with return_date as NULL on borrow
         cursor.execute("""
-            INSERT INTO transactions (student_id, book_id, action, borrow_date, due_date, transaction_date)  
-            VALUES (%s, %s, 'borrow', %s, %s, %s)
+            INSERT INTO transactions (student_id, book_id, action, borrow_date, due_date, return_date, transaction_date)  
+            VALUES (%s, %s, 'borrow', %s, %s, NULL, %s)
         """, (student_id, book_id, borrow_date, due_date, borrow_date))
 
-        #Increment total_books_borrowed
+        # Increment total_books_borrowed
         cursor.execute("""
             UPDATE student
             SET total_books_borrowed = total_books_borrowed + 1
@@ -134,7 +150,7 @@ def borrow_book(book_id):
     return redirect(url_for('browse_books_bp.borrowed_books'))
 
 
-#return a book
+# To return a book
 @browse_books_bp.route('/return_book/<int:borrow_id>', methods=['POST'])
 def return_book(borrow_id):
     student_id = session.get("student_id")
@@ -144,9 +160,9 @@ def return_book(borrow_id):
 
     try:
         connection = get_db_connection()
-        cursor = connection.cursor(dictionary=True)
+        cursor = connection.cursor()
 
-        #get borrow record with actual borrow_date and due_date
+        # Get borrow record with actual borrow_date and due_date
         cursor.execute("""
             SELECT book_id, borrow_date, due_date
             FROM borrowed_books
@@ -158,11 +174,11 @@ def return_book(borrow_id):
             flash("Borrow record not found or already returned!", "danger")
             return redirect(url_for("browse_books_bp.borrowed_books"))
 
-        book_id = borrow_record["book_id"]
-        borrow_date = borrow_record["borrow_date"]
-        due_date = borrow_record["due_date"]
+        book_id = borrow_record[0]
+        borrow_date = borrow_record[1]
+        due_date = borrow_record[2]
 
-        #set return_date properly with IST
+        # Set return_date properly with IST
         return_date = datetime.now(IST)
 
         cursor.execute("""
@@ -171,27 +187,27 @@ def return_book(borrow_id):
             WHERE borrow_id = %s
         """, (return_date, borrow_id))
 
-        #increase available copies after returning
+        # Increase available copies after returning
         cursor.execute("""
             UPDATE books 
             SET available_copies = available_copies + 1
             WHERE book_id = %s
         """, (book_id,))
 
-        #increment total_books_returned for student
+        # Increment total_books_returned for student
         cursor.execute("""
             UPDATE student
             SET total_books_returned = total_books_returned + 1
             WHERE student_id = %s
         """, (student_id,))
 
-        #log return transaction with correct borrow_date and due_date
+        # Log return transaction with correct borrow_date and due_date
         cursor.execute("""
             INSERT INTO transactions (student_id, book_id, action, borrow_date, due_date, return_date, transaction_date)
             VALUES (%s, %s, 'return', %s, %s, %s, %s)
         """, (student_id, book_id, borrow_date, due_date, return_date, return_date))
 
-        #return Book Logic for returned_books
+        # Return Book Logic for returned_books
         cursor.execute("""
             INSERT INTO returned_books (student_id, book_id, return_date)
             VALUES (%s, %s, %s)
@@ -200,7 +216,7 @@ def return_book(borrow_id):
         connection.commit()
         flash("Book returned successfully!", "success")
 
-    except mysql.connector.Error as e:
+    except psycopg2.Error as e:
         connection.rollback()
         flash(f"Database Error: {str(e)}", "danger")
 

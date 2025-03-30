@@ -1,10 +1,12 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash
-import mysql.connector
+import psycopg2
 from config import get_db_connection
+import psycopg2.extras
 
 transactions_bp = Blueprint("transactions_bp", __name__, template_folder="templates")
 
-# Transactions Page (Admin Handle The students Transactions)
+
+# Transactions Page (Admin Handle The Students Transactions)
 @transactions_bp.route("/transactions")
 def transactions_page():
     if session.get("role") != "Admin":
@@ -12,7 +14,7 @@ def transactions_page():
         return redirect(url_for("auth_bp.student_login"))
 
     connection = get_db_connection()
-    cursor = connection.cursor(dictionary=True)
+    cursor = connection.cursor(cursor_factory=psycopg2.extras.DictCursor)
 
     try:
         query = """
@@ -22,20 +24,22 @@ def transactions_page():
             COALESCE(s.name, 'Unknown Student') AS student_name,  
             COALESCE(b.book_name, 'Unknown Book') AS book_title,  
             t.action, 
-            t.borrow_date, 
+            TO_CHAR(t.borrow_date, 'YYYY-MM-DD HH24:MI:SS') AS borrow_date,
             CASE 
-                WHEN t.action = 'borrow' THEN t.due_date
+                WHEN t.action = 'borrow' THEN TO_CHAR(t.due_date, 'YYYY-MM-DD HH24:MI:SS')
                 ELSE 'N/A'
             END AS due_date,
             CASE 
                 WHEN t.action = 'return' THEN 
-                    (SELECT return_date 
-                     FROM returned_books rb 
-                     WHERE rb.student_id = t.student_id AND rb.book_id = t.book_id
-                     LIMIT 1)
+                    COALESCE((
+                        SELECT TO_CHAR(return_date, 'YYYY-MM-DD HH24:MI:SS')
+                        FROM returned_books rb 
+                        WHERE rb.student_id = t.student_id AND rb.book_id = t.book_id
+                        LIMIT 1
+                    ), 'N/A')
                 ELSE 'N/A'
             END AS return_date,
-            t.transaction_date
+            TO_CHAR(t.transaction_date, 'YYYY-MM-DD HH24:MI:SS') AS transaction_date
         FROM transactions t
         LEFT JOIN student s ON t.student_id = s.student_id  
         LEFT JOIN books b ON t.book_id = b.book_id
@@ -46,7 +50,7 @@ def transactions_page():
 
         admin_name = session.get("admin_name", "Admin")
 
-    except mysql.connector.Error as err:
+    except psycopg2.Error as err:
         flash(f"Database error: {err}", "danger")
         transactions = []
     finally:
@@ -64,7 +68,7 @@ def update_transaction_page(transaction_id):
         return redirect(url_for("transactions_bp.transactions_page"))
 
     connection = get_db_connection()
-    cursor = connection.cursor(dictionary=True)
+    cursor = connection.cursor(cursor_factory=psycopg2.extras.DictCursor)
 
     try:
         cursor.execute(
@@ -75,9 +79,9 @@ def update_transaction_page(transaction_id):
                 COALESCE(s.name, 'Unknown Student') AS student_name,  
                 COALESCE(b.book_name, 'Unknown Book') AS book_title,
                 t.action, 
-                t.borrow_date, 
-                t.due_date, 
-                t.transaction_date
+                TO_CHAR(t.borrow_date, 'YYYY-MM-DD HH24:MI:SS') AS borrow_date,
+                TO_CHAR(t.due_date, 'YYYY-MM-DD HH24:MI:SS') AS due_date,
+                TO_CHAR(t.transaction_date, 'YYYY-MM-DD HH24:MI:SS') AS transaction_date
             FROM transactions t
             LEFT JOIN student s ON t.student_id = s.student_id  
             LEFT JOIN books b ON t.book_id = b.book_id
@@ -87,7 +91,7 @@ def update_transaction_page(transaction_id):
         )
 
         transaction = cursor.fetchone()
-    except mysql.connector.Error as err:
+    except psycopg2.Error as err:
         flash(f"Error fetching transaction: {err}", "danger")
         transaction = None
     finally:
@@ -111,7 +115,7 @@ def update_transaction(transaction_id):
     action = request.form.get("action")
 
     connection = get_db_connection()
-    cursor = connection.cursor()
+    cursor = connection.cursor(cursor_factory=psycopg2.extras.DictCursor)
 
     try:
         if action == "borrow":
@@ -120,7 +124,7 @@ def update_transaction(transaction_id):
                 """
                 UPDATE transactions 
                 SET action = %s, 
-                    due_date = DATE_ADD(NOW(), INTERVAL 14 DAY),  
+                    due_date = NOW() + INTERVAL '14 days',  
                     transaction_date = NOW()
                 WHERE transaction_id = %s
                 """,
@@ -165,7 +169,7 @@ def update_transaction(transaction_id):
         connection.commit()
         flash("Transaction updated successfully!", "success")
 
-    except mysql.connector.Error as err:
+    except psycopg2.Error as err:
         flash(f"Error updating transaction: {err}", "danger")
         print(f"Error updating transaction: {err}")
 
@@ -176,7 +180,7 @@ def update_transaction(transaction_id):
     return redirect(url_for("transactions_bp.transactions_page"))
 
 
-# Delete Transactions by admin
+# Delete Transactions by Admin
 @transactions_bp.route("/transactions/delete/<int:transaction_id>", methods=["POST"])
 def delete_transaction(transaction_id):
     if session.get("role") != "Admin":
@@ -184,7 +188,7 @@ def delete_transaction(transaction_id):
         return redirect(url_for("transactions_bp.transactions_page"))
 
     connection = get_db_connection()
-    cursor = connection.cursor()
+    cursor = connection.cursor(cursor_factory=psycopg2.extras.DictCursor)
 
     try:
         cursor.execute("SELECT transaction_id FROM transactions WHERE transaction_id = %s", (transaction_id,))
@@ -197,7 +201,7 @@ def delete_transaction(transaction_id):
         connection.commit()
 
         flash("Transaction deleted successfully!", "success")
-    except mysql.connector.Error as err:
+    except psycopg2.Error as err:
         flash(f"Error deleting transaction: {err}", "danger")
         print(f"Error deleting transaction: {err}")
     finally:
@@ -219,27 +223,29 @@ def my_transactions():
 
     try:
         connection = get_db_connection()
-        cursor = connection.cursor(dictionary=True)
+        cursor = connection.cursor(cursor_factory=psycopg2.extras.DictCursor)
 
         # Fetching transactions for logged-in student
         cursor.execute("""
             SELECT t.transaction_id, 
                    b.book_name, 
                    t.action, 
-                   t.borrow_date, 
+                   TO_CHAR(t.borrow_date, 'YYYY-MM-DD HH24:MI:SS') AS borrow_date,
                    CASE 
-                       WHEN t.action = 'borrow' THEN t.due_date
+                       WHEN t.action = 'borrow' THEN TO_CHAR(t.due_date, 'YYYY-MM-DD HH24:MI:SS')
                        ELSE 'N/A'
                    END AS due_date,
                    CASE 
                        WHEN t.action = 'return' THEN 
-                           (SELECT return_date 
-                            FROM returned_books rb 
-                            WHERE rb.student_id = t.student_id AND rb.book_id = t.book_id
-                            LIMIT 1)
+                           COALESCE((
+                               SELECT TO_CHAR(return_date, 'YYYY-MM-DD HH24:MI:SS')
+                               FROM returned_books rb 
+                               WHERE rb.student_id = t.student_id AND rb.book_id = t.book_id
+                               LIMIT 1
+                           ), 'N/A')
                        ELSE 'N/A'
                    END AS return_date,
-                   t.transaction_date
+                   TO_CHAR(t.transaction_date, 'YYYY-MM-DD HH24:MI:SS') AS transaction_date
             FROM transactions t
             LEFT JOIN books b ON t.book_id = b.book_id
             WHERE t.student_id = %s
@@ -263,3 +269,4 @@ def my_transactions():
         connection.close()
 
     return render_template("my_transactions.html", transactions=transactions, student_name=student_name)
+

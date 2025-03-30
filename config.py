@@ -1,44 +1,16 @@
-import mysql.connector
-from mysql.connector import Error
-from dotenv import load_dotenv
+import psycopg2
 import os
-import sys
-import io
 
-# ✅ Force UTF-8 Encoding for Console Output
-sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
 
-# ✅ Load .env Variables
-load_dotenv()
-
-# ✅ Environment Variables (With Default Values)
-DB_HOST = os.getenv("DB_HOST", "localhost")
-DB_USER = os.getenv("DB_USER", "root")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "PMysql@4545#*")
-DB_NAME = os.getenv("DB_NAME", "library_db")
-
-# ✅ Print Variables to Verify
-print("DB_HOST:", DB_HOST)  # Corrected
-print("DB_USER:", DB_USER)  # Corrected
-print("DB_PASSWORD:", DB_PASSWORD)  # Corrected
-print("DB_NAME:", DB_NAME)  # Corrected
-
-# ✅ Database Configuration
-db_config = {
-    'host': DB_HOST,
-    'user': DB_USER,
-    'password': DB_PASSWORD,
-    'database': DB_NAME,
-    'auth_plugin': 'mysql_native_password'
-}
-
-# ✅ Function to Get Database Connection
 def get_db_connection():
     try:
-        connection = mysql.connector.connect(**db_config)
-        if connection.is_connected():
-            print("✅ Database Connection Successful!")  # Emoji Now Works Correctly
-            return connection
-    except Error as err:
-        print(f"❌ Database Connection Error: {err}")  # Error Emoji Works
-    return None
+        #Get DATABASE_URL from Render Environment Variable
+        DATABASE_URL = os.environ.get("DATABASE_URL")
+
+        #Connect using Render's PostgreSQL URL
+        connection = psycopg2.connect(DATABASE_URL)
+        return connection
+
+    except Exception as e:
+        print(f" Database Connection Failed: {e}")
+        return None

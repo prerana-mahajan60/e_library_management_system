@@ -1,4 +1,4 @@
-from flask import Flask, render_template, redirect, url_for,send_from_directory
+from flask import Flask, render_template, redirect, url_for, send_from_directory
 from flask_bcrypt import Bcrypt
 from flask_compress import Compress
 from routes.auth import auth_bp
@@ -7,24 +7,23 @@ from routes.transactions import transactions_bp
 from routes.admin import admin_bp
 from routes.student import student_bp
 from config import get_db_connection
-from database import get_db_connection
 from routes.browse_books import browse_books_bp
 import os
 from dotenv import load_dotenv
 
-# Load .env Variables
+#  Load .env Variables
 load_dotenv()
 
 app = Flask(__name__)
 app.secret_key = "super_secret_key"
 
-#Initializing Flask-Compress for faster loading
+# Initializing Flask-Compress for faster loading
 Compress(app)
 
 # Initialize Flask-Bcrypt
 bcrypt = Bcrypt(app)
 
-# ---------------------------------------------------All Files Blueprints---------------------------------
+# --------------------------------------------------- All Files Blueprints---------------------------------
 # Registering Blueprints with URL prefixes
 app.register_blueprint(auth_bp, url_prefix="/auth")
 app.register_blueprint(admin_bp, url_prefix="/admin")
@@ -77,10 +76,11 @@ def transactions_redirect():
 def browse_books_redirect():
     return redirect(url_for("browse_books_bp.browse_books"))
 
-#Serve Static Files with Cache Enabled for 1 Year
+# Serve Static Files with Cache Enabled for 1 Year
 @app.route('/static/<path:filename>')
 def custom_static(filename):
     return send_from_directory('static', filename, cache_timeout=31536000)  # Cache for 1 year
 
+#PostgreSQL Specific Changes:
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)), debug=True)

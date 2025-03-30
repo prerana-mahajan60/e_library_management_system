@@ -4,35 +4,47 @@ import traceback
 
 student_bp = Blueprint("student", __name__, template_folder="templates")
 
-#Students Home
+# Students Home
 @student_bp.route("/student_home", endpoint="student_home")
 def student_home():
-    print("👀 Session Data: ", session)  # ✅ Debug
+    print("👀 Session Data: ", session)  # Debug
     if "student_id" not in session or session.get("role") != "Student":
         flash("Please log in first!", "danger")
         return redirect(url_for("auth.student_login"))
 
     connection = get_db_connection()
-    cursor = connection.cursor(dictionary=True)
+    cursor = connection.cursor()
 
     try:
-        #Fetching available books
-        cursor.execute("""
+        # Fetching available books
+        cursor.execute(
+            """
             SELECT book_id, book_name, author, year, available_copies, language, cover_image 
             FROM books
-        """)
+            """
+        )
         books = cursor.fetchall()
 
-        #sorting books by language
+        # Sorting books by language
         books_by_language = {
             "English": [],
             "Hindi": [],
-            "Marathi": []
+            "Marathi": [],
         }
         for book in books:
-            lang = book.get("language", "English")
+            lang = book[5] if book[5] else "English"
             if lang in books_by_language:
-                books_by_language[lang].append(book)
+                books_by_language[lang].append(
+                    {
+                        "book_id": book[0],
+                        "book_name": book[1],
+                        "author": book[2],
+                        "year": book[3],
+                        "available_copies": book[4],
+                        "language": book[5],
+                        "cover_image": book[6],
+                    }
+                )
             else:
                 books_by_language["English"].append(book)
 
@@ -47,15 +59,16 @@ def student_home():
 
     student_info = {
         "name": session.get("username"),
-        "student_id": session.get("student_id")
+        "student_id": session.get("student_id"),
     }
 
     return render_template("student_home.html", student=student_info, books_by_language=books_by_language)
 
-#student profile
+
+# Student Profile
 @student_bp.route("/student_profile")
 def student_profile():
-    session.pop('_flashes', None)
+    session.pop("_flashes", None)
     if "student_id" not in session:
         flash("Please log in first!", "danger")
         return redirect(url_for("auth.student_login"))
@@ -64,30 +77,42 @@ def student_profile():
 
     student_id = session["student_id"]
     connection = get_db_connection()
-    cursor = connection.cursor(dictionary=True)
+    cursor = connection.cursor()
 
     try:
-        #Fetching student data
-        cursor.execute("""
-            SELECT student_id, name, email, course, gender, role, total_books_borrowed,
-                   total_books_returned
+        # Fetching student data
+        cursor.execute(
+            """
+            SELECT student_id, name, email, course, gender, role, total_books_borrowed, total_books_returned
             FROM student
             WHERE student_id = %s
-        """, (student_id,))
+            """,
+            (student_id,),
+        )
         student_data = cursor.fetchone()
 
         if not student_data:
             flash("⚠️ No student data found.", "warning")
             return redirect(url_for("auth.student_home"))
 
-        #profile_image select based on gender
-        gender = student_data.get("gender", "").strip().lower()
+        # Profile image select based on gender
+        gender = student_data[4].strip().lower() if student_data[4] else "other"
         gender_image_map = {
             "male": "static/image/mstud4.avif",
             "female": "static/image/fstud4.avif",
-            "other": "static/image/other.avif"
+            "other": "static/image/other.avif",
         }
-        student_data["profile_image"] = gender_image_map.get(gender, "static/image/other.avif")
+        student_dict = {
+            "student_id": student_data[0],
+            "name": student_data[1],
+            "email": student_data[2],
+            "course": student_data[3],
+            "gender": student_data[4],
+            "role": student_data[5],
+            "total_books_borrowed": student_data[6],
+            "total_books_returned": student_data[7],
+            "profile_image": gender_image_map.get(gender, "static/image/other.avif"),
+        }
 
     except Exception as e:
         current_app.logger.error(f"Error fetching student data: {str(e)}")
@@ -98,10 +123,10 @@ def student_profile():
         cursor.close()
         connection.close()
 
-    return render_template("student_profile.html", student=student_data)
+    return render_template("student_profile.html", student=student_dict)
 
 
-#Update Student Profile
+# Update Student Profile
 @student_bp.route("/update_profile", methods=["GET", "POST"])
 def update_profile():
     if "student_id" not in session:
@@ -109,12 +134,11 @@ def update_profile():
         return redirect(url_for("auth.student_login"))
 
     student_id = session["student_id"]
-
     connection = get_db_connection()
-    cursor = connection.cursor(dictionary=True)
+    cursor = connection.cursor()
 
     if request.method == "POST":
-        #Capturing form data
+        # Capturing form data
         new_name = request.form.get("name", "").strip()
         new_email = request.form.get("email", "").strip()
         new_course = request.form.get("course", "").strip()
@@ -125,16 +149,18 @@ def update_profile():
             return redirect(url_for("student.update_profile"))
 
         try:
-            # ✅ Update `student` table
-            cursor.execute("""
+            # Update `student` table
+            cursor.execute(
+                """
                 UPDATE student 
-                SET name = %s, email = %s, course = %s, gender = %s 
+                SET name = %s, email = %s, course = %s, gender = %s
                 WHERE student_id = %s
-            """, (new_name, new_email, new_course, new_gender, student_id))
-
+                """,
+                (new_name, new_email, new_course, new_gender, student_id),
+            )
             connection.commit()
 
-            #Updating session data
+            # Updating session data
             session["username"] = new_name
             session["email"] = new_email
             session["gender"] = new_gender
@@ -152,34 +178,48 @@ def update_profile():
 
     else:
         try:
-            cursor.execute("""
+            cursor.execute(
+                """
                 SELECT name, email, course, gender
                 FROM student
                 WHERE student_id = %s
-            """, (student_id,))
-            student = cursor.fetchone() or {}
+                """,
+                (student_id,),
+            )
+            student = cursor.fetchone()
+
+            if student:
+                student_dict = {
+                    "name": student[0],
+                    "email": student[1],
+                    "course": student[2],
+                    "gender": student[3],
+                }
+            else:
+                student_dict = {}
 
         except Exception as e:
             current_app.logger.error(f"Error fetching profile data: {str(e)}")
             flash("Could not fetch profile data.", "danger")
-            student = {}
+            student_dict = {}
+
         finally:
             cursor.close()
             connection.close()
 
-        #Determining profile image based on gender
-        gender = student.get("gender", "").strip().lower()
+        # Determining profile image based on gender
+        gender = student_dict.get("gender", "").strip().lower()
         gender_image_map = {
             "male": "static/image/mstud4.avif",
             "female": "static/image/fstud4.avif",
-            "other": "static/image/other.avif"
+            "other": "static/image/other.avif",
         }
         profile_image = gender_image_map.get(gender, "static/image/other.avif")
 
-        return render_template("update_profile.html", student=student, profile_image=profile_image)
+        return render_template("update_profile.html", student=student_dict, profile_image=profile_image)
 
 
-#Delete Student Profile
+# Delete Student Profile
 @student_bp.route("/delete_profile", methods=["POST"])
 def delete_profile():
     if "student_id" not in session:
@@ -187,7 +227,6 @@ def delete_profile():
         return redirect(url_for("auth.student_login"))
 
     student_id = session["student_id"]
-
     connection = get_db_connection()
     cursor = connection.cursor()
 
@@ -209,30 +248,45 @@ def delete_profile():
 
     return redirect(url_for("student.student_profile"))
 
-#getting students list page on admin system
+
+# Getting students list page on admin system
 @student_bp.route("/students_list")
 def students_list_page():
     connection = get_db_connection()
-    cursor = connection.cursor(dictionary=True)
+    cursor = connection.cursor()
 
     try:
-        cursor.execute("""
+        cursor.execute(
+            """
             SELECT student_id, name, email, course, gender
             FROM student
-        """)
+            """
+        )
         students = cursor.fetchall()
+
+        students_list = [
+            {
+                "student_id": row[0],
+                "name": row[1],
+                "email": row[2],
+                "course": row[3],
+                "gender": row[4],
+            }
+            for row in students
+        ]
 
     except Exception as e:
         current_app.logger.error(f"Error fetching student list: {str(e)}")
-        students = []
+        students_list = []
+
     finally:
         cursor.close()
         connection.close()
 
-    return render_template("students_list.html", students=students)
+    return render_template("students_list.html", students=students_list)
 
 
-#Remove Student Profile
+# Remove Student Profile
 @student_bp.route("/remove_student/<int:student_id>", methods=["POST"])
 def remove_student(student_id):
     connection = get_db_connection()
@@ -254,7 +308,7 @@ def remove_student(student_id):
     return redirect(url_for("student.students_list_page"))
 
 
-#student logout
+# Student Logout
 @student_bp.route("/student_logout")
 def student_logout():
     session.clear()

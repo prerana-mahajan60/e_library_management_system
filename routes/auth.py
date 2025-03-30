@@ -1,7 +1,8 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash
 from config import get_db_connection
 from werkzeug.security import check_password_hash, generate_password_hash
-import mysql.connector
+import psycopg2
+from psycopg2 import sql
 from flask_bcrypt import Bcrypt
 
 auth_bp = Blueprint("auth", __name__, template_folder="templates")
@@ -52,7 +53,7 @@ def admin_register():
             flash("Admin Registered Successfully! Please log in.", "success")
             return redirect(url_for("auth.admin_login"))
 
-        except mysql.connector.Error as e:
+        except psycopg2.Error as e:
             connection.rollback()
             flash(f"Database Error: {str(e)}", "danger")
 
@@ -72,13 +73,13 @@ def admin_login():
 
         # Get database connection
         connection = get_db_connection()
-        cursor = connection.cursor(dictionary=True)
+        cursor = connection.cursor()
 
         try:
             cursor.execute("SELECT * FROM admin WHERE email = %s", (email,))
             admin = cursor.fetchone()
 
-        except mysql.connector.Error:
+        except psycopg2.Error:
             flash("Database error occurred! Please try again.", "danger")
             admin = None
 
@@ -87,13 +88,13 @@ def admin_login():
             connection.close()
 
         if admin:
-            db_password = admin["password"]
+            db_password = admin[3]  # 3rd column is password
 
             # Checking password validity
             if db_password and bcrypt.check_password_hash(db_password, password):
                 session.clear()
-                session["admin_id"] = admin["admin_id"]
-                session["admin_name"] = admin["admin_name"]
+                session["admin_id"] = admin[0]
+                session["admin_name"] = admin[1]
                 session["role"] = "Admin"
 
                 flash("Login Successful!", "success")
@@ -151,7 +152,7 @@ def student_register():
             flash("Registration successful! Please log in.", "success")
             return redirect(url_for("auth.student_login"))
 
-        except mysql.connector.Error as e:
+        except psycopg2.Error as e:
             connection.rollback()
             flash(f"Registration failed: {str(e)}", "danger")
 
@@ -171,13 +172,13 @@ def student_login():
 
         # Get database connection
         connection = get_db_connection()
-        cursor = connection.cursor(dictionary=True)
+        cursor = connection.cursor()
 
         try:
             cursor.execute("SELECT * FROM student WHERE email = %s", (email,))
             student = cursor.fetchone()
 
-        except mysql.connector.Error:
+        except psycopg2.Error:
             flash("Database error occurred! Please try again.", "danger")
             student = None
 
@@ -186,13 +187,13 @@ def student_login():
             connection.close()
 
         if student:
-            db_password = student["password"]
+            db_password = student[3]  # 3rd column is password
 
             # Check password
             if db_password and bcrypt.check_password_hash(db_password, password):
                 session.clear()
-                session["student_id"] = student["student_id"]
-                session["username"] = student["name"]
+                session["student_id"] = student[0]
+                session["username"] = student[1]
                 session["role"] = "Student"
 
                 flash("Login Successful!", "success")
