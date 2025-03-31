@@ -1,19 +1,20 @@
 import psycopg2
 import os
+from dotenv import load_dotenv
 
+# 🟢 Load Secret File from /etc/secrets/.env
+load_dotenv("/etc/secrets/.env")
 
 def get_db_connection():
     try:
-        # 🟢 Get DATABASE_URL from Render Environment Variable
+        # 🟢 Get DATABASE_URL from Secret File
         DATABASE_URL = os.environ.get("DATABASE_URL")
 
         if not DATABASE_URL:
-            raise ValueError("❌ DATABASE_URL Not Found! Check Environment Variables!")
+            raise ValueError("❌ DATABASE_URL Not Found! Check Secret File!")
 
         # 🟢 Connect using Render's PostgreSQL URL
         connection = psycopg2.connect(DATABASE_URL)
-
-        # 🟢 Return the connection
         return connection
 
     except psycopg2.OperationalError as e:
