@@ -23,6 +23,7 @@ app.config.from_object(Config)
 # Initialize the Database with SQLAlchemy
 db = SQLAlchemy(app)
 
+
 # Initializing Flask-Compress for faster loading
 Compress(app)
 
