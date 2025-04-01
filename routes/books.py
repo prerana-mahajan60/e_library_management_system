@@ -1,6 +1,6 @@
-import psycopg2
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
-from config import get_db_connection
+from config import db  # Import the db object for SQLAlchemy
+from models import Book, Admin  # Assuming these models are defined in models.py
 
 # books_blueprint
 books_bp = Blueprint('books_bp', __name__, template_folder="templates")
@@ -9,32 +9,24 @@ books_bp = Blueprint('books_bp', __name__, template_folder="templates")
 # To display books
 @books_bp.route('/books', methods=['GET'])
 def books():
-    connection = get_db_connection()
-    cursor = connection.cursor()
-
-    # Fetching books from database
-    cursor.execute("""
-        SELECT book_id, book_name, author, year, available_copies, language
-        FROM books ORDER BY language, book_name
-    """)
-    books = cursor.fetchall()
+    # Fetching books using SQLAlchemy
+    books = Book.query.all()
 
     # Sort books by language
     books_by_language = {}
     for book in books:
-        lang = book[5]  # language is at index 5
+        lang = book.language
         if lang not in books_by_language:
             books_by_language[lang] = []
         books_by_language[lang].append({
-            "book_id": book[0],
-            "book_name": book[1],
-            "author": book[2],
-            "year": book[3],
-            "available_copies": book[4],
-            "language": book[5]
+            "book_id": book.book_id,
+            "book_name": book.book_name,
+            "author": book.author,
+            "year": book.year,
+            "available_copies": book.available_copies,
+            "language": book.language
         })
 
-    connection.close()
     return render_template('books.html', books_by_language=books_by_language, role="Admin")
 
 
@@ -48,25 +40,21 @@ def add_book():
     language = request.form['language']
     admin_id = session.get("admin_id")
 
-    connection = get_db_connection()
-    cursor = connection.cursor()
+    # Adding new book using SQLAlchemy
+    new_book = Book(
+        book_name=book_name,
+        author=author,
+        year=year,
+        available_copies=available_copies,
+        language=language
+    )
+    db.session.add(new_book)
 
-    # Adding new book
-    cursor.execute("""
-        INSERT INTO books (book_name, author, year, available_copies, language)
-        VALUES (%s, %s, %s, %s, %s)
-    """, (book_name, author, year, available_copies, language))
+    # Updating total_books_added for admin
+    admin = Admin.query.filter_by(admin_id=admin_id).first()
+    admin.total_books_added += 1
 
-    # Updating total_books_added
-    cursor.execute("""
-        UPDATE admin
-        SET total_books_added = total_books_added + 1
-        WHERE admin_id = %s
-    """, (admin_id,))
-
-    connection.commit()
-    cursor.close()
-    connection.close()
+    db.session.commit()
 
     flash('Book added successfully!', 'success')
     return redirect(url_for('books_bp.books'))
@@ -76,22 +64,16 @@ def add_book():
 @books_bp.route('/books/delete/<int:book_id>', methods=['GET'])
 def delete_book(book_id):
     admin_id = session.get("admin_id")
-    connection = get_db_connection()
-    cursor = connection.cursor()
 
-    # Delete the book
-    cursor.execute("DELETE FROM books WHERE book_id = %s", (book_id,))
+    # Delete the book using SQLAlchemy
+    book_to_delete = Book.query.filter_by(book_id=book_id).first()
+    db.session.delete(book_to_delete)
 
-    # Update total_books_removed
-    cursor.execute("""
-        UPDATE admin
-        SET total_books_removed = total_books_removed + 1
-        WHERE admin_id = %s
-    """, (admin_id,))
+    # Update total_books_removed for admin
+    admin = Admin.query.filter_by(admin_id=admin_id).first()
+    admin.total_books_removed += 1
 
-    connection.commit()
-    cursor.close()
-    connection.close()
+    db.session.commit()
 
     flash('Book removed successfully!', 'success')
     return redirect(url_for('books_bp.books'))
@@ -100,9 +82,6 @@ def delete_book(book_id):
 # To update book details (Admin only)
 @books_bp.route('/books/update/<int:book_id>', methods=['GET', 'POST'])
 def update_book(book_id):
-    connection = get_db_connection()
-    cursor = connection.cursor()
-
     if request.method == 'POST':
         book_name = request.form['book_name']
         author = request.form['author']
@@ -110,33 +89,31 @@ def update_book(book_id):
         available_copies = request.form['available_copies']
         language = request.form['language']
 
-        # Update book details
-        cursor.execute("""
-            UPDATE books
-            SET book_name = %s, author = %s, year = %s, available_copies = %s, language = %s
-            WHERE book_id = %s
-        """, (book_name, author, year, available_copies, language, book_id))
+        # Update book details using SQLAlchemy
+        book = Book.query.filter_by(book_id=book_id).first()
+        book.book_name = book_name
+        book.author = author
+        book.year = year
+        book.available_copies = available_copies
+        book.language = language
 
-        connection.commit()
+        db.session.commit()
+
         flash('Book updated successfully!', 'success')
         return redirect(url_for('books_bp.books'))
 
-    cursor.execute("SELECT book_id, book_name, author, year, available_copies, language FROM books WHERE book_id = %s", (book_id,))
-    book = cursor.fetchone()
+    book = Book.query.filter_by(book_id=book_id).first()
 
     if book:
         book_data = {
-            "book_id": book[0],
-            "book_name": book[1],
-            "author": book[2],
-            "year": book[3],
-            "available_copies": book[4],
-            "language": book[5]
+            "book_id": book.book_id,
+            "book_name": book.book_name,
+            "author": book.author,
+            "year": book.year,
+            "available_copies": book.available_copies,
+            "language": book.language
         }
     else:
         book_data = {}
-
-    cursor.close()
-    connection.close()
 
     return render_template('update_book.html', book=book_data)

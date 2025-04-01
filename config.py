@@ -1,25 +1,19 @@
-import psycopg2
-import os
-from dotenv import load_dotenv
+from main import app
+from config import Config
+from flask_sqlalchemy import SQLAlchemy
 
-# 🟢 Load Secret File from /etc/secrets/.env
-load_dotenv("/etc/secrets/.env")
+# To Test Database Connection
+try:
+    # SQLAlchemy already handles the DB connection via app.config
+    with app.app_context():
+        connection = app.config['SQLALCHEMY_DATABASE_URI']
+        if connection:
+            print("Database Connected Successfully!")
+        else:
+            print("Database Connection Failed!")
+except Exception as e:
+    print(f"Error: {e}")
 
-def get_db_connection():
-    try:
-        # 🟢 Get DATABASE_URL from Secret File
-        DATABASE_URL = os.environ.get("DATABASE_URL")
-
-        if not DATABASE_URL:
-            raise ValueError("❌ DATABASE_URL Not Found! Check Secret File!")
-
-        # 🟢 Connect using Render's PostgreSQL URL
-        connection = psycopg2.connect(DATABASE_URL)
-        return connection
-
-    except psycopg2.OperationalError as e:
-        print(f"🚨 Database Connection Failed: {e}")
-        return None
-    except Exception as e:
-        print(f"⚠️ Unexpected Error: {e}")
-        return None
+# For Running the Application
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=10000, debug=True)

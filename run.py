@@ -1,17 +1,20 @@
-from main import app
-from config import get_db_connection
+from main import app  # Importing app from main.py
+from config import Config
+from flask_sqlalchemy import SQLAlchemy
 
-#To Test Database Connection
+# To Test Database Connection
 try:
-    connection = get_db_connection()
-    if connection.is_connected():
-        print("Database Connected Successfully!")
-        connection.close()  # Close the connection after checking
-    else:
-        print("Database Connection Failed!")
+    # SQLAlchemy already handles the DB connection via app.config
+    with app.app_context():
+        connection = app.config['SQLALCHEMY_DATABASE_URI']
+        if connection:
+            print("Database Connected Successfully!")
+        else:
+            print("Database Connection Failed!")
 except Exception as e:
-    print(f" Error: {e}")
+    print(f"Error: {e}")
 
-#For Running the Application
+# For Running the Application
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=10000, debug=True)
+

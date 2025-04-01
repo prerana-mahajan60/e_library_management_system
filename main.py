@@ -6,16 +6,22 @@ from routes.books import books_bp
 from routes.transactions import transactions_bp
 from routes.admin import admin_bp
 from routes.student import student_bp
-from config import get_db_connection
 from routes.browse_books import browse_books_bp
+from config import Config
+from flask_sqlalchemy import SQLAlchemy
 import os
 from dotenv import load_dotenv
 
-#  Load .env Variables
+# Load .env Variables
 load_dotenv()
 
+# Initialize Flask app
 app = Flask(__name__)
-app.secret_key = "super_secret_key"
+app.secret_key = os.getenv("SECRET_KEY")
+app.config.from_object(Config)
+
+# Initialize the Database with SQLAlchemy
+db = SQLAlchemy(app)
 
 # Initializing Flask-Compress for faster loading
 Compress(app)
@@ -81,6 +87,6 @@ def browse_books_redirect():
 def custom_static(filename):
     return send_from_directory('static', filename, cache_timeout=31536000)  # Cache for 1 year
 
-#PostgreSQL Specific Changes:
+# PostgreSQL Specific Changes:
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.getenv("PORT", 5000)), debug=True)

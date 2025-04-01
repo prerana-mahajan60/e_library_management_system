@@ -1,7 +1,8 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash
-import psycopg2
-from config import get_db_connection
+from models import db, Transaction, Student, Book, ReturnedBook
+from sqlalchemy.orm import joinedload
 import psycopg2.extras
+from datetime import datetime
 
 transactions_bp = Blueprint("transactions_bp", __name__, template_folder="templates")
 
@@ -13,49 +14,17 @@ def transactions_page():
         flash("Unauthorized access!", "danger")
         return redirect(url_for("auth_bp.student_login"))
 
-    connection = get_db_connection()
-    cursor = connection.cursor(cursor_factory=psycopg2.extras.DictCursor)
-
     try:
-        query = """
-        SELECT 
-            t.transaction_id, 
-            t.student_id,  
-            COALESCE(s.name, 'Unknown Student') AS student_name,  
-            COALESCE(b.book_name, 'Unknown Book') AS book_title,  
-            t.action, 
-            TO_CHAR(t.borrow_date, 'YYYY-MM-DD HH24:MI:SS') AS borrow_date,
-            CASE 
-                WHEN t.action = 'borrow' THEN TO_CHAR(t.due_date, 'YYYY-MM-DD HH24:MI:SS')
-                ELSE 'N/A'
-            END AS due_date,
-            CASE 
-                WHEN t.action = 'return' THEN 
-                    COALESCE((
-                        SELECT TO_CHAR(return_date, 'YYYY-MM-DD HH24:MI:SS')
-                        FROM returned_books rb 
-                        WHERE rb.student_id = t.student_id AND rb.book_id = t.book_id
-                        LIMIT 1
-                    ), 'N/A')
-                ELSE 'N/A'
-            END AS return_date,
-            TO_CHAR(t.transaction_date, 'YYYY-MM-DD HH24:MI:SS') AS transaction_date
-        FROM transactions t
-        LEFT JOIN student s ON t.student_id = s.student_id  
-        LEFT JOIN books b ON t.book_id = b.book_id
-        ORDER BY t.transaction_date DESC;
-        """
-        cursor.execute(query)
-        transactions = cursor.fetchall()
+        transactions = db.session.query(Transaction) \
+            .join(Student, Student.student_id == Transaction.student_id) \
+            .join(Book, Book.book_id == Transaction.book_id) \
+            .order_by(Transaction.transaction_date.desc()) \
+            .all()
 
         admin_name = session.get("admin_name", "Admin")
-
-    except psycopg2.Error as err:
+    except Exception as err:
         flash(f"Database error: {err}", "danger")
         transactions = []
-    finally:
-        cursor.close()
-        connection.close()
 
     return render_template("transactions.html", transactions=transactions, admin={"name": admin_name})
 
@@ -67,36 +36,15 @@ def update_transaction_page(transaction_id):
         flash("Unauthorized access!", "danger")
         return redirect(url_for("transactions_bp.transactions_page"))
 
-    connection = get_db_connection()
-    cursor = connection.cursor(cursor_factory=psycopg2.extras.DictCursor)
-
     try:
-        cursor.execute(
-            """
-            SELECT 
-                t.transaction_id, 
-                t.student_id,  
-                COALESCE(s.name, 'Unknown Student') AS student_name,  
-                COALESCE(b.book_name, 'Unknown Book') AS book_title,
-                t.action, 
-                TO_CHAR(t.borrow_date, 'YYYY-MM-DD HH24:MI:SS') AS borrow_date,
-                TO_CHAR(t.due_date, 'YYYY-MM-DD HH24:MI:SS') AS due_date,
-                TO_CHAR(t.transaction_date, 'YYYY-MM-DD HH24:MI:SS') AS transaction_date
-            FROM transactions t
-            LEFT JOIN student s ON t.student_id = s.student_id  
-            LEFT JOIN books b ON t.book_id = b.book_id
-            WHERE t.transaction_id = %s
-            """,
-            (transaction_id,)
-        )
-
-        transaction = cursor.fetchone()
-    except psycopg2.Error as err:
+        transaction = db.session.query(Transaction) \
+            .join(Student, Student.student_id == Transaction.student_id) \
+            .join(Book, Book.book_id == Transaction.book_id) \
+            .filter(Transaction.transaction_id == transaction_id) \
+            .first()
+    except Exception as err:
         flash(f"Error fetching transaction: {err}", "danger")
         transaction = None
-    finally:
-        cursor.close()
-        connection.close()
 
     if not transaction:
         flash("Transaction not found!", "danger")
@@ -114,68 +62,31 @@ def update_transaction(transaction_id):
 
     action = request.form.get("action")
 
-    connection = get_db_connection()
-    cursor = connection.cursor(cursor_factory=psycopg2.extras.DictCursor)
-
     try:
+        transaction = Transaction.query.get(transaction_id)
+
         if action == "borrow":
-            # Auto-set due_date to 14 days if action is "borrow"
-            cursor.execute(
-                """
-                UPDATE transactions 
-                SET action = %s, 
-                    due_date = NOW() + INTERVAL '14 days',  
-                    transaction_date = NOW()
-                WHERE transaction_id = %s
-                """,
-                (action, transaction_id),
-            )
+            transaction.action = action
+            transaction.due_date = datetime.now() + timedelta(days=14)
+            transaction.transaction_date = datetime.now()
         elif action == "return":
-            # Set transaction_date to NOW() if action is "return"
-            cursor.execute(
-                """
-                UPDATE transactions 
-                SET action = %s, 
-                    transaction_date = NOW(),
-                    due_date = NULL
-                WHERE transaction_id = %s
-                """,
-                (action, transaction_id),
-            )
+            transaction.action = action
+            transaction.transaction_date = datetime.now()
+            transaction.due_date = None
 
             # Check if return record already exists
-            cursor.execute(
-                """
-                SELECT return_date FROM returned_books
-                WHERE student_id = (SELECT student_id FROM transactions WHERE transaction_id = %s)
-                  AND book_id = (SELECT book_id FROM transactions WHERE transaction_id = %s)
-                """,
-                (transaction_id, transaction_id),
-            )
-            existing_return = cursor.fetchone()
+            returned_record = ReturnedBook.query.filter_by(student_id=transaction.student_id,
+                                                           book_id=transaction.book_id).first()
+            if not returned_record:
+                new_returned_book = ReturnedBook(student_id=transaction.student_id, book_id=transaction.book_id,
+                                                 return_date=datetime.now())
+                db.session.add(new_returned_book)
 
-            # If no return record, insert it
-            if not existing_return:
-                cursor.execute(
-                    """
-                    INSERT INTO returned_books (student_id, book_id, return_date)
-                    SELECT student_id, book_id, NOW()
-                    FROM transactions
-                    WHERE transaction_id = %s
-                    """,
-                    (transaction_id,),
-                )
-
-        connection.commit()
+        db.session.commit()
         flash("Transaction updated successfully!", "success")
-
-    except psycopg2.Error as err:
+    except Exception as err:
+        db.session.rollback()
         flash(f"Error updating transaction: {err}", "danger")
-        print(f"Error updating transaction: {err}")
-
-    finally:
-        cursor.close()
-        connection.close()
 
     return redirect(url_for("transactions_bp.transactions_page"))
 
@@ -187,26 +98,19 @@ def delete_transaction(transaction_id):
         flash("Unauthorized access!", "danger")
         return redirect(url_for("transactions_bp.transactions_page"))
 
-    connection = get_db_connection()
-    cursor = connection.cursor(cursor_factory=psycopg2.extras.DictCursor)
-
     try:
-        cursor.execute("SELECT transaction_id FROM transactions WHERE transaction_id = %s", (transaction_id,))
-        existing_transaction = cursor.fetchone()
-        if not existing_transaction:
+        transaction = Transaction.query.get(transaction_id)
+        if not transaction:
             flash("Transaction not found!", "danger")
             return redirect(url_for("transactions_bp.transactions_page"))
 
-        cursor.execute("DELETE FROM transactions WHERE transaction_id = %s", (transaction_id,))
-        connection.commit()
+        db.session.delete(transaction)
+        db.session.commit()
 
         flash("Transaction deleted successfully!", "success")
-    except psycopg2.Error as err:
+    except Exception as err:
+        db.session.rollback()
         flash(f"Error deleting transaction: {err}", "danger")
-        print(f"Error deleting transaction: {err}")
-    finally:
-        cursor.close()
-        connection.close()
 
     return redirect(url_for("transactions_bp.transactions_page"))
 
@@ -222,51 +126,17 @@ def my_transactions():
         return redirect(url_for("auth_bp.student_login"))
 
     try:
-        connection = get_db_connection()
-        cursor = connection.cursor(cursor_factory=psycopg2.extras.DictCursor)
+        transactions = db.session.query(Transaction) \
+            .join(Book, Book.book_id == Transaction.book_id) \
+            .filter(Transaction.student_id == student_id) \
+            .order_by(Transaction.transaction_date.desc()) \
+            .all()
 
-        # Fetching transactions for logged-in student
-        cursor.execute("""
-            SELECT t.transaction_id, 
-                   b.book_name, 
-                   t.action, 
-                   TO_CHAR(t.borrow_date, 'YYYY-MM-DD HH24:MI:SS') AS borrow_date,
-                   CASE 
-                       WHEN t.action = 'borrow' THEN TO_CHAR(t.due_date, 'YYYY-MM-DD HH24:MI:SS')
-                       ELSE 'N/A'
-                   END AS due_date,
-                   CASE 
-                       WHEN t.action = 'return' THEN 
-                           COALESCE((
-                               SELECT TO_CHAR(return_date, 'YYYY-MM-DD HH24:MI:SS')
-                               FROM returned_books rb 
-                               WHERE rb.student_id = t.student_id AND rb.book_id = t.book_id
-                               LIMIT 1
-                           ), 'N/A')
-                       ELSE 'N/A'
-                   END AS return_date,
-                   TO_CHAR(t.transaction_date, 'YYYY-MM-DD HH24:MI:SS') AS transaction_date
-            FROM transactions t
-            LEFT JOIN books b ON t.book_id = b.book_id
-            WHERE t.student_id = %s
-            ORDER BY t.transaction_date DESC
-        """, (student_id,))
-
-        transactions = cursor.fetchall()
-
-        # Fetching student name
-        cursor.execute("SELECT name FROM student WHERE student_id = %s", (student_id,))
-        student = cursor.fetchone()
-        student_name = student["name"] if student else "Student"
-
+        student = Student.query.get(student_id)
+        student_name = student.name if student else "Student"
     except Exception as e:
         flash(f"Error fetching transactions: {str(e)}", "danger")
         transactions = []
         student_name = "Student"
 
-    finally:
-        cursor.close()
-        connection.close()
-
     return render_template("my_transactions.html", transactions=transactions, student_name=student_name)
-

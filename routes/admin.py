@@ -1,11 +1,10 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, session, request
-import psycopg2
+from flask_sqlalchemy import SQLAlchemy
 from flask import current_app
-from config import get_db_connection
+from models import Admin, Book  # Import the Admin and Book models
 
 # admin-blueprint
 admin_bp = Blueprint("admin", __name__, template_folder="templates")
-
 
 # Admin Home Route
 @admin_bp.route("/admin_home")
@@ -16,23 +15,12 @@ def admin_home():
         flash("Please log in first!", "danger")
         return redirect(url_for("auth.admin_login"))
 
-    # Fetch books from the database
-    connection = get_db_connection()
-    cursor = connection.cursor()
-    cursor.execute(
-        """
-        SELECT book_id, book_name, author, year, available_copies, language, cover_image
-        FROM books
-        """
-    )
-    books = cursor.fetchall()
+    # Fetch books from the database using SQLAlchemy
+    books = Book.query.all()
 
     print("Fetched books:")
     for book in books:
         print(book)
-
-    cursor.close()
-    connection.close()
 
     admin = {
         "id": session.get("admin_id"),
@@ -40,7 +28,6 @@ def admin_home():
     }
 
     return render_template("admin_home.html", admin=admin, books=books, admin_id=admin["id"])
-
 
 # Admin Profile
 @admin_bp.route("/admin/profile")
@@ -51,55 +38,32 @@ def admin_profile():
         return redirect(url_for("auth.admin_login"))
 
     admin_id = session["admin_id"]
-    connection = get_db_connection()
-    cursor = connection.cursor()
+    admin = Admin.query.get(admin_id)
 
-    try:
-        cursor.execute(
-            """
-            SELECT admin_id, admin_name, email, gender, total_books_added, total_books_removed, created_at
-            FROM admin
-            WHERE admin_id = %s
-            """,
-            (admin_id,),
-        )
-        admin = cursor.fetchone()
-
-        if not admin:
-            flash("Admin not found!", "danger")
-            return redirect(url_for("admin.admin_home"))
-
-        gender = admin[3].strip().lower() if admin[3] else "other"
-        gender_image_map = {
-            "male": "image/madmin.avif",
-            "female": "image/fadmin2.avif",
-            "other": "image/other.avif",
-        }
-        admin_dict = {
-            "admin_id": admin[0],
-            "admin_name": admin[1],
-            "email": admin[2],
-            "gender": admin[3],
-            "total_books_added": admin[4],
-            "total_books_removed": admin[5],
-            "created_at": admin[6],
-            "profile_image": url_for(
-                "static", filename=gender_image_map.get(gender, "image/other.avif")
-            ),
-        }
-
-        connection.commit()
-
-        return render_template("admin_profile.html", admin=admin_dict)
-
-    except Exception as e:
-        flash(f"Error fetching admin data: {str(e)}", "danger")
+    if not admin:
+        flash("Admin not found!", "danger")
         return redirect(url_for("admin.admin_home"))
 
-    finally:
-        cursor.close()
-        connection.close()
+    gender = admin.gender.strip().lower() if admin.gender else "other"
+    gender_image_map = {
+        "male": "image/madmin.avif",
+        "female": "image/fadmin2.avif",
+        "other": "image/other.avif",
+    }
+    admin_dict = {
+        "admin_id": admin.admin_id,
+        "admin_name": admin.admin_name,
+        "email": admin.email,
+        "gender": admin.gender,
+        "total_books_added": admin.total_books_added,
+        "total_books_removed": admin.total_books_removed,
+        "created_at": admin.created_at,
+        "profile_image": url_for(
+            "static", filename=gender_image_map.get(gender, "image/other.avif")
+        ),
+    }
 
+    return render_template("admin_profile.html", admin=admin_dict)
 
 # admin_update_profile
 @admin_bp.route("/admin/update_profile", methods=["GET", "POST"])
@@ -108,8 +72,7 @@ def update_profile():
         return redirect(url_for("auth.admin_login"))
 
     admin_id = session["admin_id"]
-    connection = get_db_connection()
-    cursor = connection.cursor()
+    admin = Admin.query.get(admin_id)
 
     if request.method == "POST":
         name = request.form["name"]
@@ -117,49 +80,22 @@ def update_profile():
         gender = request.form["gender"]
 
         try:
-            cursor.execute(
-                """
-                UPDATE admin
-                SET admin_name = %s, email = %s, gender = %s
-                WHERE admin_id = %s
-                """,
-                (name, email, gender, admin_id),
-            )
-            connection.commit()
+            admin.admin_name = name
+            admin.email = email
+            admin.gender = gender
+            db.session.commit()
 
             session["admin_name"] = name if name else session.get("admin_name")
             flash("Profile updated successfully!", "success")
 
         except Exception as e:
-            connection.rollback()
+            db.session.rollback()
             flash(f"⚠️ Error updating profile: {str(e)}", "danger")
-
-        finally:
-            cursor.close()
-            connection.close()
 
         return redirect(url_for("admin.admin_profile"))
 
-    # Fetching admin details
-    cursor.execute(
-        """
-        SELECT admin_id, admin_name, email, gender
-        FROM admin
-        WHERE admin_id = %s
-        """,
-        (admin_id,),
-    )
-    admin = cursor.fetchone()
-
-    cursor.close()
-    connection.close()
-
-    if not admin:
-        flash("⚠️ Admin not found!", "warning")
-        return redirect(url_for("auth.admin_login"))
-
     # Assign profile image based on gender
-    gender = admin[3].strip().lower() if admin[3] else "other"
+    gender = admin.gender.strip().lower() if admin.gender else "other"
     gender_image_map = {
         "male": "image/madmin.avif",
         "female": "image/fadmin2.avif",
@@ -168,15 +104,14 @@ def update_profile():
     profile_image = url_for("static", filename=gender_image_map.get(gender, "image/other.avif"))
 
     admin_dict = {
-        "admin_id": admin[0],
-        "admin_name": admin[1],
-        "email": admin[2],
-        "gender": admin[3],
+        "admin_id": admin.admin_id,
+        "admin_name": admin.admin_name,
+        "email": admin.email,
+        "gender": admin.gender,
         "profile_image": profile_image,
     }
 
     return render_template("update_admin_profile.html", admin=admin_dict, profile_image=profile_image)
-
 
 # admin_delete_profile
 @admin_bp.route("/admin/delete_profile", methods=["POST"])
@@ -186,26 +121,20 @@ def delete_profile():
         return redirect(url_for("auth.admin_login"))
 
     admin_id = session["admin_id"]
-    connection = get_db_connection()
-    cursor = connection.cursor()
+    admin = Admin.query.get(admin_id)
 
     try:
-        cursor.execute("DELETE FROM admin WHERE admin_id = %s", (admin_id,))
-        connection.commit()
+        db.session.delete(admin)
+        db.session.commit()
 
         session.clear()
         flash("Your profile has been deleted successfully!", "success")
 
     except Exception as e:
-        connection.rollback()
+        db.session.rollback()
         flash(f"⚠️ Error deleting profile: {str(e)}", "danger")
 
-    finally:
-        cursor.close()
-        connection.close()
-
     return redirect(url_for("auth.admin_login"))
-
 
 # admin_logout
 @admin_bp.route("/admin_logout")
