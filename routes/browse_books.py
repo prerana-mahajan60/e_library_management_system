@@ -1,6 +1,5 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash
 from datetime import datetime, timedelta
-from config import db  # Import the db object for SQLAlchemy
 from models import Book, BorrowedBook, Transaction, Student, ReturnedBook  # Import the necessary models
 from extensions import db, bcrypt, login_manager
 
@@ -51,7 +50,7 @@ def borrowed_books():
     # Fetching borrowed books using SQLAlchemy
     borrowed_books = db.session.query(BorrowedBook, Book).filter(
         BorrowedBook.student_id == student_id,
-        BorrowedBook.return_date == None
+        BorrowedBook.return_date is None
     ).join(Book, BorrowedBook.book_id == Book.book_id).all()
 
     books_data = []

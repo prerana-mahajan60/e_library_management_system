@@ -1,5 +1,4 @@
 from flask import Blueprint, render_template, redirect, url_for, flash, session, current_app, request
-from config import db  # Import SQLAlchemy db
 from models import Book, Student  # Assuming these models are defined in models.py
 import traceback
 from extensions import db, bcrypt, login_manager

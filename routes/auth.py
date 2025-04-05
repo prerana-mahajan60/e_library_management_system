@@ -4,8 +4,6 @@ from flask_sqlalchemy import SQLAlchemy
 from models import Admin, Student  # Import models for Admin and Student
 from extensions import db, bcrypt, login_manager
 
-
-
 auth_bp = Blueprint("auth", __name__, template_folder="templates")
 
 # Initialize Bcrypt

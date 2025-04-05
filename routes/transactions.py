@@ -7,7 +7,6 @@ from extensions import db, bcrypt, login_manager
 
 transactions_bp = Blueprint("transactions_bp", __name__, template_folder="templates")
 
-
 # Transactions Page (Admin Handle The Students Transactions)
 @transactions_bp.route("/transactions")
 def transactions_page():
