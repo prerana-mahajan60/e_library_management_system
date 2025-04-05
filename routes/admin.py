@@ -23,12 +23,26 @@ def admin_home():
     for book in books:
         print(book)
 
+    # Optimize: Group books by language
+    books_by_language = {}
+    for book in books:
+        lang = book.language
+        if lang not in books_by_language:
+            books_by_language[lang] = []
+        books_by_language[lang].append(book)
+
     admin = {
         "id": session.get("admin_id"),
         "name": session.get("admin_name"),
     }
 
-    return render_template("admin_home.html", admin=admin, books=books, admin_id=admin["id"])
+    return render_template(
+        "admin_home.html",
+        admin=admin,
+        books=books,
+        books_by_language=books_by_language,
+        admin_id=admin["id"]
+    )
 
 # Admin Profile
 @admin_bp.route("/admin/profile")

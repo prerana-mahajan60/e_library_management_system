@@ -1,7 +1,7 @@
 from datetime import datetime
 import sqlalchemy as sa
 from sqlalchemy import CheckConstraint
-from extensions import db, bcrypt  # ✅ Correct import
+from extensions import db, bcrypt
 
 # -------------------------- User Model --------------------------
 class User(db.Model):
@@ -88,8 +88,8 @@ class BorrowedBook(db.Model):
     borrow_date = db.Column(db.DateTime, default=datetime.utcnow)
     due_date = db.Column(db.DateTime, nullable=False)
 
-    student = db.relationship('Student', backref=db.backref('borrowed_books', cascade='all, delete-orphan'))
-    book = db.relationship('Book', backref=db.backref('borrowed_books', cascade='all, delete-orphan'))
+    student = db.relationship('Student', backref=db.backref('borrowed_books', cascade='all, delete-orphan', passive_deletes=True))
+    book = db.relationship('Book', backref=db.backref('borrowed_books', cascade='all, delete-orphan', passive_deletes=True))
 
     def __repr__(self):
         return f'<BorrowedBook book_id={self.book_id} student_id={self.student_id}>'
@@ -103,8 +103,8 @@ class ReturnedBook(db.Model):
     book_id = db.Column(db.Integer, db.ForeignKey('books.book_id', ondelete='CASCADE'), nullable=False)
     return_date = db.Column(db.DateTime, default=datetime.utcnow)
 
-    student = db.relationship('Student', backref=db.backref('returned_books', cascade='all, delete-orphan'))
-    book = db.relationship('Book', backref=db.backref('returned_books', cascade='all, delete-orphan'))
+    student = db.relationship('Student', backref=db.backref('returned_books', cascade='all, delete-orphan', passive_deletes=True))
+    book = db.relationship('Book', backref=db.backref('returned_books', cascade='all, delete-orphan', passive_deletes=True))
 
     def __repr__(self):
         return f'<ReturnedBook book_id={self.book_id} student_id={self.student_id}>'
@@ -119,11 +119,11 @@ class Transaction(db.Model):
     borrow_date = db.Column(db.DateTime, nullable=True)
     due_date = db.Column(db.DateTime, nullable=True)
     return_date = db.Column(db.DateTime, nullable=True)
-    action = db.Column(sa.Enum('borrow', 'return', name='transaction_action'), nullable=False)
+    action = db.Column(sa.Enum('borrow', 'return', name='transaction_action', create_type=False), nullable=False)
     transaction_date = db.Column(db.DateTime, default=datetime.utcnow)
 
-    student = db.relationship('Student', backref=db.backref('transactions', cascade='all, delete-orphan'))
-    book = db.relationship('Book', backref=db.backref('transactions', cascade='all, delete-orphan'))
+    student = db.relationship('Student', backref=db.backref('transactions', cascade='all, delete-orphan', passive_deletes=True))
+    book = db.relationship('Book', backref=db.backref('transactions', cascade='all, delete-orphan', passive_deletes=True))
 
     def __repr__(self):
         return f'<Transaction {self.transaction_id}>'
