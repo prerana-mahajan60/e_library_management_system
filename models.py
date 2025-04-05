@@ -87,12 +87,14 @@ class BorrowedBook(db.Model):
     book_id = db.Column(db.Integer, db.ForeignKey('books.book_id', ondelete='CASCADE'), nullable=False)
     borrow_date = db.Column(db.DateTime, default=datetime.utcnow)
     due_date = db.Column(db.DateTime, nullable=False)
+    return_date = db.Column(db.DateTime, nullable=True)  # ✅ Add this line
 
     student = db.relationship('Student', backref=db.backref('borrowed_books', cascade='all, delete-orphan', passive_deletes=True))
     book = db.relationship('Book', backref=db.backref('borrowed_books', cascade='all, delete-orphan', passive_deletes=True))
 
     def __repr__(self):
         return f'<BorrowedBook book_id={self.book_id} student_id={self.student_id}>'
+
 
 # -------------------------- Returned Book Model --------------------------
 class ReturnedBook(db.Model):
