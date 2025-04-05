@@ -9,25 +9,34 @@ from routes.student import student_bp
 from routes.browse_books import browse_books_bp
 from config import Config
 from extensions import db, bcrypt, login_manager
+from models import Admin, Student  # 👈 Make sure these models are correct
 import os
 from dotenv import load_dotenv
 
-# Load .env Variables Early
+# ---------------------- Load .env Variables Early ----------------------
 load_dotenv()
 
-# --------------------------- Initialize Flask App ---------------------------
+# ---------------------- Initialize Flask App ----------------------
 app = Flask(__name__)
 app.secret_key = os.getenv("SECRET_KEY")
 app.config.from_object(Config)
 
-# --------------------------- Flask Extensions Init ---------------------------
+# ---------------------- Flask Extensions Init ----------------------
 db.init_app(app)
 bcrypt.init_app(app)
 login_manager.init_app(app)
 migrate = Migrate(app, db)
 Compress(app)
 
-# --------------------------- Register Blueprints ---------------------------
+# ---------------------- Login Manager: Load User ----------------------
+@login_manager.user_loader
+def load_user(user_id):
+    user = Admin.query.get(user_id)
+    if user:
+        return user
+    return Student.query.get(user_id)
+
+# ---------------------- Register Blueprints ----------------------
 app.register_blueprint(auth_bp, url_prefix="/auth")
 app.register_blueprint(admin_bp, url_prefix="/admin")
 app.register_blueprint(student_bp, url_prefix="/student")
@@ -35,7 +44,7 @@ app.register_blueprint(books_bp, url_prefix="/books")
 app.register_blueprint(transactions_bp, url_prefix="/transactions")
 app.register_blueprint(browse_books_bp, url_prefix="/browse_books")
 
-# --------------------------- Main Routes ---------------------------
+# ---------------------- Main Routes ----------------------
 @app.route("/")
 def index():
     return render_template("login_system.html")
@@ -76,12 +85,12 @@ def transactions_redirect():
 def browse_books_redirect():
     return redirect(url_for("browse_books_bp.browse_books"))
 
-# --------------------------- Static Files (Cached) ---------------------------
+# ---------------------- Static Files (Cached) ----------------------
 @app.route('/static/<path:filename>')
 def custom_static(filename):
     return send_from_directory('static', filename, cache_timeout=31536000)
 
-# --------------------------- App Runner ---------------------------
+# ---------------------- App Runner ----------------------
 if __name__ == "__main__":
     with app.app_context():
         print("✅ Running Flask App on Render...")
