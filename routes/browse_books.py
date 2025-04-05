@@ -2,8 +2,7 @@ from flask import Blueprint, render_template, request, redirect, url_for, sessio
 from datetime import datetime, timedelta
 from config import db  # Import the db object for SQLAlchemy
 from models import Book, BorrowedBook, Transaction, Student, ReturnedBook  # Import the necessary models
-from main import db
-
+from extensions import db, bcrypt, login_manager
 
 # Set IST timezone
 import pytz

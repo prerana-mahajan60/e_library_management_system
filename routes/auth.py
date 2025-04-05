@@ -2,7 +2,8 @@ from flask import Blueprint, render_template, request, redirect, url_for, sessio
 from flask_bcrypt import Bcrypt
 from flask_sqlalchemy import SQLAlchemy
 from models import Admin, Student  # Import models for Admin and Student
-from main import db
+from extensions import db, bcrypt, login_manager
+
 
 
 auth_bp = Blueprint("auth", __name__, template_folder="templates")

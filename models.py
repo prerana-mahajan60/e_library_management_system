@@ -1,7 +1,8 @@
 from datetime import datetime
 import sqlalchemy as sa
 from sqlalchemy import CheckConstraint
-from config import db
+from extensions import db, bcrypt  # ✅ Correct import
+
 # -------------------------- User Model --------------------------
 class User(db.Model):
     __tablename__ = 'users'

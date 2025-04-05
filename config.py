@@ -1,12 +1,9 @@
 import os
 from dotenv import load_dotenv
-from flask_sqlalchemy import SQLAlchemy
+
 
 # Load environment variables from .env file
 load_dotenv()
-
-# Initialize SQLAlchemy
-db = SQLAlchemy()
 
 class Config:
     """Configuration settings for Flask app."""

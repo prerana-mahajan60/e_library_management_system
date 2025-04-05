@@ -3,8 +3,7 @@ from models import db, Transaction, Student, Book, ReturnedBook
 from sqlalchemy.orm import joinedload
 import psycopg2.extras
 from datetime import datetime
-from main import db
-
+from extensions import db, bcrypt, login_manager
 
 transactions_bp = Blueprint("transactions_bp", __name__, template_folder="templates")
 

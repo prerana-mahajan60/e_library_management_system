@@ -1,14 +1,14 @@
 from flask import Flask, render_template, redirect, url_for, send_from_directory
-from flask_bcrypt import Bcrypt
-from flask_compress import Compress
 from flask_migrate import Migrate
+from flask_compress import Compress
 from routes.auth import auth_bp
 from routes.books import books_bp
 from routes.transactions import transactions_bp
 from routes.admin import admin_bp
 from routes.student import student_bp
 from routes.browse_books import browse_books_bp
-from config import Config, db
+from config import Config
+from extensions import db, bcrypt, login_manager
 import os
 from dotenv import load_dotenv
 
@@ -22,8 +22,9 @@ app.config.from_object(Config)
 
 # --------------------------- Flask Extensions Init ---------------------------
 db.init_app(app)
+bcrypt.init_app(app)
+login_manager.init_app(app)
 migrate = Migrate(app, db)
-bcrypt = Bcrypt(app)
 Compress(app)
 
 # --------------------------- Register Blueprints ---------------------------
@@ -39,7 +40,6 @@ app.register_blueprint(browse_books_bp, url_prefix="/browse_books")
 def index():
     return render_template("login_system.html")
 
-# Auth
 @app.route("/auth/login")
 def admin_login_redirect():
     return redirect(url_for("auth.admin_login"))
@@ -56,17 +56,14 @@ def student_login_redirect():
 def student_register_redirect():
     return redirect(url_for("auth.student_register"))
 
-# Admin
 @app.route("/admin/admin_home")
 def admin_home_redirect():
     return redirect(url_for("admin.admin_home"))
 
-# Student
 @app.route("/student/student_home")
 def student_home_redirect():
     return redirect(url_for("student.student_home"))
 
-# Books
 @app.route("/books")
 def books_redirect():
     return redirect(url_for("books_bp.books"))
@@ -82,14 +79,13 @@ def browse_books_redirect():
 # --------------------------- Static Files (Cached) ---------------------------
 @app.route('/static/<path:filename>')
 def custom_static(filename):
-    return send_from_directory('static', filename, cache_timeout=31536000)  # 1 year cache
+    return send_from_directory('static', filename, cache_timeout=31536000)
 
 # --------------------------- App Runner ---------------------------
 if __name__ == "__main__":
     with app.app_context():
         print("✅ Running Flask App on Render...")
 
-        # ✅ Create tables if migrations are not applied
         try:
             db.create_all()
         except Exception as e:
@@ -98,5 +94,5 @@ if __name__ == "__main__":
         app.run(
             host="0.0.0.0",
             port=int(os.getenv("PORT", 5000)),
-            debug=Config.DEBUG  # 🛠 Uses actual .env debug value
+            debug=Config.DEBUG
         )
