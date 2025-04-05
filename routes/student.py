@@ -2,6 +2,8 @@ from flask import Blueprint, render_template, redirect, url_for, flash, session,
 from config import db  # Import SQLAlchemy db
 from models import Book, Student  # Assuming these models are defined in models.py
 import traceback
+from main import db
+
 
 student_bp = Blueprint("student", __name__, template_folder="templates")
 

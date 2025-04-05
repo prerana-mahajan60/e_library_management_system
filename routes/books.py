@@ -1,6 +1,8 @@
 from flask import Blueprint, render_template, request, redirect, url_for, flash, session
 from config import db  # Import the db object for SQLAlchemy
 from models import Book, Admin  # Assuming these models are defined in models.py
+from main import db
+
 
 # books_blueprint
 books_bp = Blueprint('books_bp', __name__, template_folder="templates")

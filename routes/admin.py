@@ -2,6 +2,7 @@ from flask import Blueprint, render_template, redirect, url_for, flash, session,
 from flask_sqlalchemy import SQLAlchemy
 from flask import current_app
 from models import Admin, Book  # Import the Admin and Book models
+from main import db
 
 # admin-blueprint
 admin_bp = Blueprint("admin", __name__, template_folder="templates")
