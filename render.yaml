@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: flask-library-app
+    runtime: python
+    buildCommand: ""
+    startCommand: gunicorn main:app
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: PORT
+        value: 5000
+      - key: SECRET_KEY
+        value: your-secret-key
+      - key: DATABASE_URL
+        value: your-internal-db-url
+    autoDeploy: true

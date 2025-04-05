@@ -1,27 +1,30 @@
 import os
 from dotenv import load_dotenv
 from flask_sqlalchemy import SQLAlchemy
-# 🟢 Load Environment Variables from .env
+
+# Load environment variables from .env file
 load_dotenv()
 
+# Initialize SQLAlchemy
 db = SQLAlchemy()
 
 class Config:
     """Configuration settings for Flask app."""
 
-    # 🟢 PostgreSQL Database URL (Render)
-    DATABASE_URL = os.getenv("DATABASE_URL",
-                             "postgresql://library_user:IWKqxVgpsegDHkkXp6WDAmP20buZGvxn@dpg-cvlq570dl3ps739u14hg-a.oregon-postgres.render.com/library_db_ipjn")
+    # Get the DATABASE_URL from environment
+    db_url = os.getenv("DATABASE_URL")
 
-    if not DATABASE_URL:
-        raise ValueError("❌ DATABASE_URL Not Found! Check your environment variables.")
+    if not db_url:
+        raise ValueError("❌ DATABASE_URL not found! Please check your .env file.")
 
-    # 🟢 SQLAlchemy Configuration
-    SQLALCHEMY_DATABASE_URI = DATABASE_URL + "?sslmode=require"  # SSL required for Render
-    SQLALCHEMY_TRACK_MODIFICATIONS = False  # Disable tracking for better performance
+    # Fix old Heroku-style URL if needed
+    if db_url.startswith("postgres://"):
+        db_url = db_url.replace("postgres://", "postgresql://", 1)
 
-    # 🟢 Secret Key for Flask (Use for Sessions, CSRF Protection, etc.)
+    # Flask settings
+    SQLALCHEMY_DATABASE_URI = db_url
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
     SECRET_KEY = os.getenv("SECRET_KEY", "supersecretkey")
 
-    # 🟢 Other Configurations (Modify as needed)
-    DEBUG = os.getenv("DEBUG", "False").lower() == "true"  # Toggle debug mode
+    # Convert DEBUG from string to bool
+    DEBUG = os.getenv("DEBUG", "False").strip().lower() in ("true", "1", "yes")
