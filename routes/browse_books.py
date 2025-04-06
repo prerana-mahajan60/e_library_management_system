@@ -58,8 +58,8 @@ def borrowed_books():
             "author": book.author,
             "year": book.year,
             "language": book.language,
-            "borrow_date": borrow_record.borrow_date.strftime('%Y-%m-%d %H:%M'),
-            "due_date": borrow_record.due_date.strftime('%Y-%m-%d %H:%M')
+            "borrow_date": borrow_record.borrow_date.strftime('%Y-%m-%d %H:%M') if borrow_record.borrow_date else "N/A",
+            "due_date": borrow_record.due_date.strftime('%Y-%m-%d %H:%M') if borrow_record.due_date else "N/A"
         })
 
     return render_template("borrowed_books.html", borrowed_books=books_data)
