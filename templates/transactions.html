@@ -273,7 +273,7 @@
                         <tr>
                             <td>{{ transaction.transaction_id }}</td>
                            <td>{{ transaction.student.name }}</td>
-                            <td>{{ transaction.book.title }}</td>
+                            <td>{{ transaction.book.book_name if transaction.book else 'N/A' }}</td>
                             <td>
                                 {% if transaction.action == 'return' %}
                                 <span class="badge badge-delivered">Returned</span>

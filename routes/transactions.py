@@ -2,11 +2,12 @@ from flask import Blueprint, render_template, request, redirect, url_for, sessio
 from models import db, Transaction, Student, Book, ReturnedBook
 from sqlalchemy.orm import joinedload
 import psycopg2.extras
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from extensions import db, bcrypt, login_manager
 
 transactions_bp = Blueprint("transactions_bp", __name__, template_folder="templates")
 
+datetime.now(timezone.utc)
 
 @transactions_bp.route("/transactions")
 def transactions_page():
