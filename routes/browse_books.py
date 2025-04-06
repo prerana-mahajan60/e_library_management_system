@@ -47,7 +47,7 @@ def borrowed_books():
 
     borrowed_books = db.session.query(BorrowedBook, Book).filter(
         BorrowedBook.student_id == student_id,
-        BorrowedBook.return_date is None
+        BorrowedBook.return_date.is_(None)
     ).join(Book, BorrowedBook.book_id == Book.book_id).all()
 
     books_data = []

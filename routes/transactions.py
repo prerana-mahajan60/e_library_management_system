@@ -7,6 +7,7 @@ from extensions import db, bcrypt, login_manager
 
 transactions_bp = Blueprint("transactions_bp", __name__, template_folder="templates")
 
+
 @transactions_bp.route("/transactions")
 def transactions_page():
     if session.get("role") != "Admin":
@@ -15,8 +16,7 @@ def transactions_page():
 
     try:
         transactions = db.session.query(Transaction) \
-            .join(Student, Student.student_id == Transaction.student_id) \
-            .join(Book, Book.book_id == Transaction.book_id) \
+            .options(joinedload(Transaction.student), joinedload(Transaction.book)) \
             .order_by(Transaction.transaction_date.desc()) \
             .all()
 
@@ -37,8 +37,7 @@ def update_transaction_page(transaction_id):
 
     try:
         transaction = db.session.query(Transaction) \
-            .join(Student, Student.student_id == Transaction.student_id) \
-            .join(Book, Book.book_id == Transaction.book_id) \
+            .options(joinedload(Transaction.student), joinedload(Transaction.book)) \
             .filter(Transaction.transaction_id == transaction_id) \
             .first()
     except Exception as err:
@@ -123,7 +122,7 @@ def my_transactions():
 
     try:
         transactions = db.session.query(Transaction) \
-            .join(Book, Book.book_id == Transaction.book_id) \
+            .options(joinedload(Transaction.book)) \
             .filter(Transaction.student_id == student_id) \
             .order_by(Transaction.transaction_date.desc()) \
             .all()

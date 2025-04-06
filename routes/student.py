@@ -76,7 +76,7 @@ def student_profile():
             "email": student_data.email,
             "course": student_data.course,
             "gender": student_data.gender,
-            "role": student_data.role,
+            "role": session.get("role", "Student"),
             "total_books_borrowed": student_data.total_books_borrowed,
             "total_books_returned": student_data.total_books_returned,
             "profile_image": gender_image_map.get(gender, "static/image/other.avif"),
