@@ -292,10 +292,10 @@
                                 <span class="badge badge-pending">{{ transaction.action }}</span>
                                 {% endif %}
                             </td>
-                            <td>{{ transaction.borrow_date }}</td>
-                            <td>{{ transaction.due_date or 'N/A' }}</td>
-                            <td>{{ transaction.return_date or 'N/A' }}</td>
-                            <td>{{ transaction.transaction_date }}</td>
+                            <td>{{ transaction.borrow_date.strftime('%Y-%m-%d %H:%M') if transaction.borrow_date else 'N/A' }}</td>
+                            <td>{{ transaction.due_date.strftime('%Y-%m-%d %H:%M') if transaction.due_date else 'N/A' }}</td>
+                            <td>{{ transaction.return_date.strftime('%Y-%m-%d %H:%M') if transaction.return_date else 'N/A' }}</td>
+                            <td>{{ transaction.transaction_date.strftime('%Y-%m-%d %H:%M') if transaction.transaction_date else 'N/A' }}</td>
                             <td>
                                 <div class="btn-container">
                                     <form action="{{ url_for('transactions_bp.update_transaction_page', transaction_id=transaction.transaction_id) }}" method="get">
