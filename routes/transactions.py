@@ -10,6 +10,13 @@ transactions_bp = Blueprint("transactions_bp", __name__, template_folder="templa
 def current_utc_time():
     return datetime.now(timezone.utc)
 
+# ✅ Convert UTC datetime to IST
+def to_ist(utc_dt):
+    if utc_dt is None:
+        return None
+    ist_offset = timedelta(hours=5, minutes=30)
+    return utc_dt.astimezone(timezone(ist_offset))
+
 @transactions_bp.route("/transactions")
 def transactions_page():
     if session.get("role") != "Admin":
@@ -21,6 +28,13 @@ def transactions_page():
             .options(joinedload(Transaction.student), joinedload(Transaction.book)) \
             .order_by(Transaction.transaction_date.desc()) \
             .all()
+
+        # ✅ Convert datetime fields to IST
+        for t in transactions:
+            t.transaction_date_ist = to_ist(t.transaction_date)
+            t.borrow_date_ist = to_ist(t.borrow_date)
+            t.return_date_ist = to_ist(t.return_date)
+            t.due_date_ist = to_ist(t.due_date)
 
         admin_name = session.get("admin_name", "Admin")
     except Exception as err:
@@ -42,6 +56,11 @@ def update_transaction_page(transaction_id):
             .options(joinedload(Transaction.student), joinedload(Transaction.book)) \
             .filter(Transaction.transaction_id == transaction_id) \
             .first()
+
+        transaction.transaction_date_ist = to_ist(transaction.transaction_date)
+        transaction.borrow_date_ist = to_ist(transaction.borrow_date)
+        transaction.return_date_ist = to_ist(transaction.return_date)
+        transaction.due_date_ist = to_ist(transaction.due_date)
     except Exception as err:
         flash(f"Error fetching transaction: {err}", "danger")
         transaction = None
@@ -128,6 +147,12 @@ def my_transactions():
             .filter(Transaction.student_id == student_id) \
             .order_by(Transaction.transaction_date.desc()) \
             .all()
+
+        for t in transactions:
+            t.transaction_date_ist = to_ist(t.transaction_date)
+            t.borrow_date_ist = to_ist(t.borrow_date)
+            t.return_date_ist = to_ist(t.return_date)
+            t.due_date_ist = to_ist(t.due_date)
 
         student = Student.query.get(student_id)
         student_name = student.name if student else "Student"
