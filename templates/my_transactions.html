@@ -253,26 +253,28 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {% for transaction in transactions %}
-                        <tr>
-                            <td>{{ transaction.transaction_id }}</td>
-                            <td>{{ transaction.book_name }}</td>
-                            <td>
-                                {% if transaction.action == 'return' %}
-                                <span class="badge badge-delivered">Returned</span>
-                                {% elif transaction.action == 'borrow' %}
-                                <span class="badge badge-shipped">Borrowed</span>
-                                {% else %}
-                                <span class="badge badge-pending">{{ transaction.action }}</span>
-                                {% endif %}
-                            </td>
-                            <td>{{ transaction.borrow_date }}</td>
-                            <td>{{ transaction.due_date or 'N/A' }}</td>
-                            <td>{{ transaction.return_date or 'N/A' }}</td>
-                            <td>{{ transaction.transaction_date }}</td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
+    {% for transaction in transactions %}
+    <tr>
+        <td>{{ transaction.transaction_id }}</td>
+        <td>{{ transaction.book.title }}</td>
+
+        <td>
+            {% if transaction.action == 'return' %}
+            <span class="badge badge-delivered">Returned</span>
+            {% elif transaction.action == 'borrow' %}
+            <span class="badge badge-shipped">Borrowed</span>
+            {% else %}
+            <span class="badge badge-pending">{{ transaction.action }}</span>
+               {% endif %}
+               </td>
+        <td>{{ transaction.borrow_date.strftime('%Y-%m-%d %H:%M') if transaction.borrow_date else 'N/A' }}</td>
+        <td>{{ transaction.due_date.strftime('%Y-%m-%d %H:%M') if transaction.due_date else 'N/A' }}</td>
+        <td>{{ transaction.return_date.strftime('%Y-%m-%d %H:%M') if transaction.return_date else 'N/A' }}</td>
+        <td>{{ transaction.transaction_date.strftime('%Y-%m-%d %H:%M') if transaction.transaction_date else 'N/A' }}</td>
+                 </tr>
+                    {% endfor %}
+                     </tbody>
+
                 </table>
             </div>
         </div>
