@@ -213,26 +213,18 @@
                         <p>📖 Author: {{ book.author }}</p>
                         <p>📅 Year: {% if book.year %} {{ book.year }} {% else %} Not Available {% endif %}</p>
                         <p>🗣 Language: {% if book.language %} {{ book.language }} {% else %} Not Available {% endif %}</p>
-                       <p>📚 Borrowed On:
-                           {% if book.borrow_date %}
-                           {% if book.borrow_date.__class__.__name__ == 'datetime' %}
-                           {{ book.borrow_date.strftime("%Y-%m-%d") }}
+                        <p>📚 Borrowed On:
+                            {% if book.borrow_date %}
+                                {{ book.borrow_date.split(' ')[0] }}
                             {% else %}
-                            {{ book.borrow_date }}
+                                Unknown
                             {% endif %}
-                            {% else %}
-                            Unknown
-                            {% endif %}
-                       </p>
+                        </p>
                         <p>⏳ Due Date:
                             {% if book.due_date %}
-                            {% if book.due_date.__class__.__name__ == 'datetime' %}
-                            {{ book.due_date.strftime("%Y-%m-%d") }}
+                                {{ book.due_date.split(' ')[0] }}
                             {% else %}
-                            {{ book.due_date }}
-                            {% endif %}
-                            {% else %}
-                            Not Set
+                                Not Set
                             {% endif %}
                         </p>
 
