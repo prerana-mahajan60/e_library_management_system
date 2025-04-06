@@ -2,12 +2,11 @@ from flask import Blueprint, render_template, request, redirect, url_for, sessio
 from models import db, Transaction, Student, Book, ReturnedBook
 from sqlalchemy.orm import joinedload
 import psycopg2.extras
-from datetime import datetime
+from datetime import datetime, timedelta
 from extensions import db, bcrypt, login_manager
 
 transactions_bp = Blueprint("transactions_bp", __name__, template_folder="templates")
 
-# Transactions Page (Admin Handle The Students Transactions)
 @transactions_bp.route("/transactions")
 def transactions_page():
     if session.get("role") != "Admin":
@@ -25,11 +24,11 @@ def transactions_page():
     except Exception as err:
         flash(f"Database error: {err}", "danger")
         transactions = []
+        admin_name = "Admin"
 
     return render_template("transactions.html", transactions=transactions, admin={"name": admin_name})
 
 
-# Update Transactions by Admin
 @transactions_bp.route("/transactions/update/<int:transaction_id>", methods=["GET"])
 def update_transaction_page(transaction_id):
     if session.get("role") != "Admin":
@@ -53,7 +52,6 @@ def update_transaction_page(transaction_id):
     return render_template("update_transactions.html", transaction=transaction)
 
 
-# Update Transactions (Auto-Set Return Date for Return Action)
 @transactions_bp.route("/transactions/update/<int:transaction_id>", methods=["POST"])
 def update_transaction(transaction_id):
     if session.get("role") != "Admin":
@@ -69,16 +67,18 @@ def update_transaction(transaction_id):
             transaction.action = action
             transaction.due_date = datetime.now() + timedelta(days=14)
             transaction.transaction_date = datetime.now()
+            transaction.return_date = None
         elif action == "return":
             transaction.action = action
             transaction.transaction_date = datetime.now()
             transaction.due_date = None
+            transaction.return_date = datetime.now()
 
-            # Check if return record already exists
             returned_record = ReturnedBook.query.filter_by(student_id=transaction.student_id,
                                                            book_id=transaction.book_id).first()
             if not returned_record:
-                new_returned_book = ReturnedBook(student_id=transaction.student_id, book_id=transaction.book_id,
+                new_returned_book = ReturnedBook(student_id=transaction.student_id,
+                                                 book_id=transaction.book_id,
                                                  return_date=datetime.now())
                 db.session.add(new_returned_book)
 
@@ -91,7 +91,6 @@ def update_transaction(transaction_id):
     return redirect(url_for("transactions_bp.transactions_page"))
 
 
-# Delete Transactions by Admin
 @transactions_bp.route("/transactions/delete/<int:transaction_id>", methods=["POST"])
 def delete_transaction(transaction_id):
     if session.get("role") != "Admin":
@@ -115,9 +114,6 @@ def delete_transaction(transaction_id):
     return redirect(url_for("transactions_bp.transactions_page"))
 
 
-# ------------------------------------------------For_students-------------------------------------------------
-
-# For student_transactions....(students transactions which is on student system of logged-student)
 @transactions_bp.route("/my_transactions")
 def my_transactions():
     student_id = session.get("student_id")
