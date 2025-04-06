@@ -3,6 +3,7 @@ from models import db, Transaction, Student, Book, ReturnedBook
 from sqlalchemy.orm import joinedload
 from datetime import datetime, timedelta, timezone
 from extensions import db, bcrypt, login_manager
+from pytz import timezone as pytz_timezone
 
 transactions_bp = Blueprint("transactions_bp", __name__, template_folder="templates")
 
@@ -10,12 +11,12 @@ transactions_bp = Blueprint("transactions_bp", __name__, template_folder="templa
 def current_utc_time():
     return datetime.now(timezone.utc)
 
-# ✅ Convert UTC datetime to IST
+# ✅ Convert UTC datetime to IST using pytz
 def to_ist(utc_dt):
     if utc_dt is None:
         return None
-    ist_offset = timedelta(hours=5, minutes=30)
-    return utc_dt.astimezone(timezone(ist_offset))
+    ist = pytz_timezone('Asia/Kolkata')
+    return utc_dt.astimezone(ist)
 
 @transactions_bp.route("/transactions")
 def transactions_page():
