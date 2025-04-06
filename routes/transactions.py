@@ -1,13 +1,14 @@
 from flask import Blueprint, render_template, request, redirect, url_for, session, flash
 from models import db, Transaction, Student, Book, ReturnedBook
 from sqlalchemy.orm import joinedload
-import psycopg2.extras
 from datetime import datetime, timedelta, timezone
 from extensions import db, bcrypt, login_manager
 
 transactions_bp = Blueprint("transactions_bp", __name__, template_folder="templates")
 
-datetime.now(timezone.utc)
+# ✅ UTC Time function
+def current_utc_time():
+    return datetime.now(timezone.utc)
 
 @transactions_bp.route("/transactions")
 def transactions_page():
@@ -65,21 +66,21 @@ def update_transaction(transaction_id):
 
         if action == "borrow":
             transaction.action = action
-            transaction.due_date = datetime.now() + timedelta(days=14)
-            transaction.transaction_date = datetime.now()
+            transaction.due_date = current_utc_time() + timedelta(days=14)
+            transaction.transaction_date = current_utc_time()
             transaction.return_date = None
         elif action == "return":
             transaction.action = action
-            transaction.transaction_date = datetime.now()
+            transaction.transaction_date = current_utc_time()
             transaction.due_date = None
-            transaction.return_date = datetime.now()
+            transaction.return_date = current_utc_time()
 
             returned_record = ReturnedBook.query.filter_by(student_id=transaction.student_id,
                                                            book_id=transaction.book_id).first()
             if not returned_record:
                 new_returned_book = ReturnedBook(student_id=transaction.student_id,
                                                  book_id=transaction.book_id,
-                                                 return_date=datetime.now())
+                                                 return_date=current_utc_time())
                 db.session.add(new_returned_book)
 
         db.session.commit()
