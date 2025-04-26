@@ -100,6 +100,7 @@
             justify-content: center;
             align-items: center;
             overflow: hidden;
+            color: black;
         }
 
         .book-card:hover {
@@ -216,7 +217,7 @@
                     <p>📖 Author: {{ book.author }}</p>
                     <p>📅 Year: {{ book.year }}</p>
                     <p>📚 Available Copies: {{ book.available_copies }}</p>
-                    <p>🌐 Language: {{ book.language }}</p>
+                    <p style="color:black">🌐 Language: {{ book.language }}</p>
                     {% if role == "Admin" %}
                     <a href="{{ url_for('books_bp.delete_book', book_id=book['book_id']) }}" class="remove-btn">Remove</a>
                     {% endif %}
